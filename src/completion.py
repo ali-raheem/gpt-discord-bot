@@ -45,12 +45,11 @@ async def generate_completion_response(
         chat_history.append({"role": "system", "content": f"{BOT_INSTRUCTIONS}. Your name is {MY_BOT_NAME}. The current time is {CURRENT_TIME} in Germany."})
         for message in messages:
             chat_history.append({"role": "assistant" if message.user == "{MY_BOT_NAME}" else "user", "content": message.text})
-        print(chat_history)
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=chat_history,
             temperature=1.0,
-            top_p=0.9,
+            n=1,
             max_tokens=512,
             stop=None,
         )
