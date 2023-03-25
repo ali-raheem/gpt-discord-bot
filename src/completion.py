@@ -44,13 +44,13 @@ async def generate_completion_response(
         chat_history = []
         chat_history.append({"role": "system", "content": f"{BOT_INSTRUCTIONS}. Your name is {MY_BOT_NAME}. The current time is {CURRENT_TIME} in Germany."})
         for message in messages:
-            chat_history.append({"role": "assistant" if message.user == "{MY_BOT_NAME}" else "user", "content": message.text})
+            chat_history.append({"role": "assistant" if message.user == MY_BOT_NAME else "user", "content": message.text})
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=chat_history,
             temperature=1.0,
-            n=1,
             max_tokens=512,
+            n=1,
             stop=None,
         )
         reply = response.choices[0].message['content'].strip()
@@ -92,6 +92,75 @@ async def generate_completion_response(
         return CompletionData(
             status=CompletionResult.OTHER_ERROR, reply_text=None, status_text=str(e)
         )
+# async def generate_completion_response(
+#     messages: List[Message], user: str
+# ) -> CompletionData:
+#     try:
+#         prompt = Prompt(
+#             header=Message(
+#                 "System", f"Instructions for {MY_BOT_NAME}: {BOT_INSTRUCTIONS}"
+#             ),
+#             examples=MY_BOT_EXAMPLE_CONVOS,
+#             convo=Conversation(messages + [Message(MY_BOT_NAME)]),
+#         )
+#         rendered = prompt.render()
+# #        response = openai.ChatCompletion.create(
+#  #       model="gpt-3.5-turbo",  # Replace with the desired model
+#   #      messages=[Message(MY_BOT_NAME)],
+#    #     max_tokens=50,
+#     #    n=1,
+#      #   stop=None,
+#       #  temperature=0.5,
+#        # )
+# #        response = openai.ChatCompletion.create(
+#  #           engine="gpt-3.5-turbo",
+#         response = openai.Completion.create(
+#             engine="text-davinci-003",
+#             prompt=rendered,
+#             temperature=1.0,
+#             top_p=0.9,
+#             max_tokens=512,
+#             stop=["<|endoftext|>"],
+#         )
+#         reply = response.choices[0].text.strip()
+#         if reply:
+#             flagged_str, blocked_str = moderate_message(
+#                 message=(rendered + reply)[-500:], user=user
+#             )
+#             if len(blocked_str) > 0:
+#                 return CompletionData(
+#                     status=CompletionResult.MODERATION_BLOCKED,
+#                     reply_text=reply,
+#                     status_text=f"from_response:{blocked_str}",
+#                 )
+
+#             if len(flagged_str) > 0:
+#                 return CompletionData(
+#                     status=CompletionResult.MODERATION_FLAGGED,
+#                     reply_text=reply,
+#                     status_text=f"from_response:{flagged_str}",
+#                 )
+
+#         return CompletionData(
+#             status=CompletionResult.OK, reply_text=reply, status_text=None
+#         )
+#     except openai.error.InvalidRequestError as e:
+#         if "This model's maximum context length" in e.user_message:
+#             return CompletionData(
+#                 status=CompletionResult.TOO_LONG, reply_text=None, status_text=str(e)
+#             )
+#         else:
+#             logger.exception(e)
+#             return CompletionData(
+#                 status=CompletionResult.INVALID_REQUEST,
+#                 reply_text=None,
+#                 status_text=str(e),
+#             )
+#     except Exception as e:
+#         logger.exception(e)
+#         return CompletionData(
+#             status=CompletionResult.OTHER_ERROR, reply_text=None, status_text=str(e)
+#         )
 
 
 async def process_response(
