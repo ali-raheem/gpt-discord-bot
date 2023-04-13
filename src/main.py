@@ -20,6 +20,7 @@ from src.utils import (
 )
 from src import completion
 from src.completion import generate_completion_response, process_response
+from src.image import generate_image_response
 from src.moderation import (
     moderate_message,
     send_moderation_blocked_message,
@@ -51,6 +52,90 @@ async def on_ready():
                 messages.append(m)
         completion.MY_BOT_EXAMPLE_CONVOS.append(Conversation(messages=messages))
     await tree.sync()
+
+# /image message:
+@tree.command(name="image", description="Create a new thread for images")
+@discord.app_commands.checks.has_permissions(send_messages=True)
+@discord.app_commands.checks.has_permissions(view_channel=True)
+@discord.app_commands.checks.bot_has_permissions(send_messages=True)
+@discord.app_commands.checks.bot_has_permissions(view_channel=True)
+@discord.app_commands.checks.bot_has_permissions(manage_threads=True)
+async def chat_command(int: discord.Interaction, message: str):
+    try:
+        # only support creating thread in text channel
+        if not isinstance(int.channel, discord.TextChannel):
+            return
+
+        # block servers not in allow list
+        if should_block(guild=int.guild):
+            return
+
+        user = int.user
+        logger.info(f"Image command by {user} {message[:20]}")
+        try:
+            # moderate the message
+            flagged_str, blocked_str = moderate_message(message=message, user=user)
+            await send_moderation_blocked_message(
+                guild=int.guild,
+                user=user,
+                blocked_str=blocked_str,
+                message=message,
+            )
+            if len(blocked_str) > 0:
+                # message was blocked
+                await int.response.send_message(
+                    f"Your prompt has been blocked by moderation.\n{message}",
+                    ephemeral=True,
+                )
+                return
+
+            embed = discord.Embed(
+                description=f"<@{user.id}> wants to chat! 🤖💬",
+                color=discord.Color.green(),
+            )
+            embed.add_field(name=user.name, value=message)
+
+            if len(flagged_str) > 0:
+                # message was flagged
+                embed.color = discord.Color.yellow()
+                embed.title = "⚠️ This prompt was flagged by moderation."
+
+            await int.response.send_message(embed=embed)
+            response = await int.original_response()
+
+            await send_moderation_flagged_message(
+                guild=int.guild,
+                user=user,
+                flagged_str=flagged_str,
+                message=message,
+                url=response.jump_url,
+            )
+        except Exception as e:
+            logger.exception(e)
+            await int.response.send_message(
+                f"Failed to start chat {str(e)}", ephemeral=True
+            )
+            return
+
+        # create the thread
+        thread = await response.create_thread(
+            name=f"{ACTIVATE_THREAD_PREFX} {user.name[:20]} - {message[:30]}",
+            slowmode_delay=1,
+            reason="gpt-bot",
+            auto_archive_duration=60,
+        )
+        async with thread.typing():
+            # fetch completion
+            messages = [Message(user=user.name, text=message)]
+            print(message)
+            response_data = await generate_image_response(message)
+                        # send the result
+            await thread.send(content=response_data)
+    except Exception as e:
+        logger.exception(e)
+        await int.response.send_message(
+            f"Failed to start chat {str(e)}", ephemeral=True
+        )
 
 
 # /chat message:
@@ -216,7 +301,7 @@ async def on_message(message: DiscordMessage):
             await thread.send(
                 embed=discord.Embed(
                     description=f"⚠️ **{message.author}'s message has been flagged by moderation.**",
-                    color=discord.Color.yellow(),
+            r        color=discord.Color.yellow(),
                 )
             )
 
